@@ -9,15 +9,17 @@
 package com.devaneystafflog;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 public class StaffMember {
     private String name;
     private String teamID;
     private Date startDate;
-    private LocalDateTime lastFlex;
-    private LocalDateTime lastFloat;
     private String phoneNumber;
+    private List<LocalDateTime> flexDates;
+    private List<LocalDateTime> floatDates;
 
     /**
      * Constructor: StaffMember
@@ -26,18 +28,16 @@ public class StaffMember {
      *   - name: The staff member's name in "First Last" format.
      *   - teamID: The 6-digit team ID of the staff member.
      *   - startDate: The date when the staff member started, as a Date object.
-     *   - lastFlex: The last time the staff member flexed, as a LocalDateTime.
-     *   - lastFloat: The last time the staff member floated to another unit, as a LocalDateTime.
      *   - phoneNumber: The staff member's contact number in the format "XXX-XXX-XXXX".
      * Return: None
      */
-    public StaffMember(String name, String teamID, Date startDate, LocalDateTime lastFlex, LocalDateTime lastFloat, String phoneNumber) {
+    public StaffMember(String name, String teamID, Date startDate, String phoneNumber) {
         setName(name);
         setTeamID(teamID);
         setStartDate(startDate);
-        setLastFlex(lastFlex);
-        setLastFloat(lastFloat);
         setPhoneNumber(phoneNumber);
+        this.flexDates = new ArrayList<>();
+        this.floatDates = new ArrayList<>();
     }
 
     // Getters and Setters with Validation
@@ -77,30 +77,6 @@ public class StaffMember {
         }
     }
 
-    public LocalDateTime getLastFlex() {
-        return lastFlex;
-    }
-
-    public void setLastFlex(LocalDateTime lastFlex) {
-        if (lastFlex != null) {
-            this.lastFlex = lastFlex;
-        } else {
-            throw new IllegalArgumentException("Last flex date cannot be null.");
-        }
-    }
-
-    public LocalDateTime getLastFloat() {
-        return lastFloat;
-    }
-
-    public void setLastFloat(LocalDateTime lastFloat) {
-        if (lastFloat != null) {
-            this.lastFloat = lastFloat;
-        } else {
-            throw new IllegalArgumentException("Last float date cannot be null.");
-        }
-    }
-
     public String getPhoneNumber() {
         return phoneNumber;
     }
@@ -113,15 +89,51 @@ public class StaffMember {
         }
     }
 
+    // Add a flex date
+    public void addFlexDate(LocalDateTime date) {
+        this.flexDates.add(date);
+    }
+
+    // Add a float date
+    public void addFloatDate(LocalDateTime date) {
+        this.floatDates.add(date);
+    }
+
+    // Get all flex dates
+    public List<LocalDateTime> getFlexDates() {
+        return flexDates;
+    }
+
+    // Get all float dates
+    public List<LocalDateTime> getFloatDates() {
+        return floatDates;
+    }
+
+    // Get the most recent flex date
+    public LocalDateTime getLastFlex() {
+        if (flexDates.isEmpty()) {
+            return null;
+        }
+        return flexDates.get(flexDates.size() - 1);
+    }
+
+    // Get the most recent float date
+    public LocalDateTime getLastFloat() {
+        if (floatDates.isEmpty()) {
+            return null;
+        }
+        return floatDates.get(floatDates.size() - 1);
+    }
+
     @Override
     public String toString() {
         return "StaffMember{" +
                 "name='" + name + '\'' +
                 ", teamID='" + teamID + '\'' +
                 ", startDate=" + startDate +
-                ", lastFlex=" + lastFlex +
-                ", lastFloat=" + lastFloat +
                 ", phoneNumber='" + phoneNumber + '\'' +
+                ", lastFlex=" + (getLastFlex() != null ? getLastFlex() : "No flex dates") +
+                ", lastFloat=" + (getLastFloat() != null ? getLastFloat() : "No float dates") +
                 '}';
     }
 }
