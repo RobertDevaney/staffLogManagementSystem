@@ -1,7 +1,7 @@
 /**
  * Robert Devaney
  * CEN-3024C-15339
- * October 13, 2024
+ * October 20, 2024
  * InputValidator.java
  * This class encapsulates methods for validating user inputs such as names, dates, phone numbers, and more.
  */
@@ -182,7 +182,20 @@ public class InputValidator {
         return year;
     }
 
+    public Date validateDate(String dateStr) throws ParseException {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("MM-dd-yyyy");
+        dateFormat.setLenient(false);
+        return dateFormat.parse(dateStr);
+    }
+
+    public LocalDateTime validateDateTime(String dateTimeStr) {
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm");
+        return LocalDateTime.parse(dateTimeStr, dateTimeFormatter);
+    }
 
 
+    public Scanner getScanner() {
+        return null;
+    }
 }
 

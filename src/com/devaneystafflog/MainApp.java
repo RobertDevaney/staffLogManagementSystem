@@ -1,7 +1,7 @@
 /**
  * Robert Devaney
  * CEN-3024C-15339
- * October 13, 2024
+ * October 20, 2024
  * MainApp.java
  * This is the main class for the Staff Log Management System. It provides a menu-based interface for managing
  * staff members and loading data from a text file. The system allows users to add, remove, update staff members,
@@ -55,7 +55,7 @@ public class MainApp {
                         LocalDateTime lastFloat = validator.promptValidatedDateTime("Enter Last Float Date and Time (MM-dd-yyyy HH:mm): ");
                         String phoneNumber = validator.promptValidatedPhoneNumber();
 
-                        if (!manager.isDuplicate(teamID)) {
+                        if (!manager.isDuplicate(teamID.trim())) {
                             StaffMember newStaff = new StaffMember(name, teamID, startDate, phoneNumber);
                             newStaff.addFlexDate(lastFlex);
                             newStaff.addFloatDate(lastFloat);
@@ -66,7 +66,7 @@ public class MainApp {
                         manager.displayAllStaff();
                         break;
 
-                    case 2:// Removing a staff member
+                    case 2: // Removing a staff member
                         System.out.print("Enter Name or TeamID to remove: ");
                         String identifier = scanner.nextLine().trim();
                         manager.removeStaff(identifier, scanner);
@@ -76,7 +76,9 @@ public class MainApp {
                     case 3: // Updating a staff member
                         System.out.print("Enter Name or TeamID to update: ");
                         String updateIdentifier = scanner.nextLine().trim();
-                        if (manager.isDuplicate(updateIdentifier)) {
+
+                        // Check if a staff member exists by either name or TeamID
+                        if (manager.staffExists(updateIdentifier)) {
                             LocalDateTime updatedLastFlex = validator.promptValidatedDateTime("Enter new Last Flex Date and Time (MM-dd-yyyy HH:mm): ");
                             LocalDateTime updatedLastFloat = validator.promptValidatedDateTime("Enter new Last Float Date and Time (MM-dd-yyyy HH:mm): ");
                             String newPhoneNumber = validator.promptValidatedPhoneNumber();
@@ -87,7 +89,7 @@ public class MainApp {
                         }
                         break;
 
-                    case 4:// Displaying all staff members
+                    case 4: // Displaying all staff members
                         manager.displayAllStaff();
                         break;
 
@@ -97,13 +99,13 @@ public class MainApp {
                         manager.displayLastFlexFloat(searchIdentifier, scanner);
                         break;
 
-                    case 6:// Generating a monthly float report
+                    case 6: // Generating a monthly float report
                         int reportMonth = validator.promptValidatedMonth();
                         int reportYear = validator.promptValidatedYear();
                         manager.generateMonthlyFloatReport(reportMonth, reportYear);
                         break;
 
-                    case 7:// Generating a yearly flex/float report
+                    case 7: // Generating a yearly flex/float report
                         int reportYearForFlexFloat = validator.promptValidatedYear();
                         manager.generateYearlyFlexFloatReport(reportYearForFlexFloat);
                         break;

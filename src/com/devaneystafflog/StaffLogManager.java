@@ -1,7 +1,7 @@
 /**
  * Robert Devaney
  * CEN-3024C-15339
- * October 13, 2024
+ * October 20, 2024
  * StaffLogManager.java
  * This class manages the list of staff members, allowing additions, removals, updates,
  * and display of staff details. It includes features for reporting staff flex/float dates
@@ -31,7 +31,7 @@ public class StaffLogManager {
 
     // Check if a staff member with the same TeamID already exists
     public boolean isDuplicate(String teamID) {
-        return staffList.stream().anyMatch(staff -> staff.getTeamID().equalsIgnoreCase(teamID));
+        return staffList.stream().anyMatch(staff -> staff.getTeamID().equalsIgnoreCase(teamID.trim()));
     }
 
     // Remove a staff member by name or TeamID
@@ -47,7 +47,7 @@ public class StaffLogManager {
             // Multiple matching staff members found, ask for clarification
             String teamID = promptForTeamID(matchingStaff, scanner);
             Optional<StaffMember> staffToRemove = staffList.stream()
-                    .filter(staff -> staff.getTeamID().equalsIgnoreCase(teamID))
+                    .filter(staff -> staff.getTeamID().equalsIgnoreCase(teamID.trim()))
                     .findFirst();
 
             if (staffToRemove.isPresent()) {
@@ -71,7 +71,7 @@ public class StaffLogManager {
             // Multiple matching staff members found, ask for clarification
             String teamID = promptForTeamID(matchingStaff, scanner);
             Optional<StaffMember> staffToUpdate = staffList.stream()
-                    .filter(staff -> staff.getTeamID().equalsIgnoreCase(teamID))
+                    .filter(staff -> staff.getTeamID().equalsIgnoreCase(teamID.trim()))
                     .findFirst();
 
             if (staffToUpdate.isPresent()) {
@@ -85,7 +85,7 @@ public class StaffLogManager {
     // Helper method to find staff by name or teamID
     private List<StaffMember> findStaffByNameOrTeamID(String identifier) {
         return staffList.stream()
-                .filter(staff -> staff.getName().equalsIgnoreCase(identifier) || staff.getTeamID().equalsIgnoreCase(identifier))
+                .filter(staff -> staff.getName().equalsIgnoreCase(identifier.trim()) || staff.getTeamID().equalsIgnoreCase(identifier.trim()))
                 .toList();
     }
 
@@ -131,7 +131,7 @@ public class StaffLogManager {
             // Multiple matching staff members found, ask for clarification
             String teamID = promptForTeamID(matchingStaff, scanner);
             Optional<StaffMember> staffToDisplay = staffList.stream()
-                    .filter(staff -> staff.getTeamID().equalsIgnoreCase(teamID))
+                    .filter(staff -> staff.getTeamID().equalsIgnoreCase(teamID.trim()))
                     .findFirst();
 
             if (staffToDisplay.isPresent()) {
@@ -166,7 +166,6 @@ public class StaffLogManager {
         }
     }
 
-
     // Generate yearly flex/float report
     public void generateYearlyFlexFloatReport(int year) {
         long flexCount = staffList.stream()
@@ -182,4 +181,25 @@ public class StaffLogManager {
         System.out.println("Number of staff who flexed in year " + year + ": " + flexCount);
         System.out.println("Number of staff who floated in year " + year + ": " + floatCount);
     }
+
+
+    // Check if a staff member exists by Name or TeamID
+    public boolean staffExists(String identifier) {
+        return !findStaffByNameOrTeamID(identifier).isEmpty();
+    }
+
+    // Return all staff members as a List for GUI table display
+    public List<StaffMember> getAllStaffMembers() {
+        return new ArrayList<>(staffList);
+    }
+
+    // Find a staff member by identifier and return it for update/search display in GUI
+    public StaffMember getStaffByIdentifier(String identifier) {
+        return staffList.stream()
+                .filter(staff -> staff.getName().equalsIgnoreCase(identifier.trim()) || staff.getTeamID().equalsIgnoreCase(identifier.trim()))
+                .findFirst()
+                .orElse(null);
+    }
+
+
 }
