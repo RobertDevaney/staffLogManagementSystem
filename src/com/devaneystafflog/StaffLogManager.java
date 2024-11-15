@@ -9,197 +9,305 @@
  */
 package com.devaneystafflog;
 
+import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.Scanner;
 
 public class StaffLogManager {
-    public List<StaffMember> staffList;
+    private final DatabaseConnection dbConnection;
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("MM-dd-yyyy");
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm");
 
-    // Constructor
-    public StaffLogManager() {
-        this.staffList = new ArrayList<>();
+
+    /**
+     * Constructor: StaffLogManager
+     * Initializes the StaffLogManager with the provided database connection.
+     *
+     * @param dbConnection an instance of DatabaseConnection to interact with the database.
+     */
+    public StaffLogManager(DatabaseConnection dbConnection) {
+        this.dbConnection = dbConnection;
     }
 
-    // Add a new staff member
-    public void addStaff(StaffMember staff) {
-        staffList.add(staff);
-        System.out.println("Staff member added successfully: " + staff.getName());
+
+
+    /**
+     * Converts a Timestamp to a LocalDateTime object.
+     *
+     * @param timestamp the Timestamp to be converted.
+     * @return a LocalDateTime object or null if the timestamp is null.
+     */
+    public LocalDateTime convertToLocalDateTime(Timestamp timestamp) {
+        return timestamp != null ? timestamp.toLocalDateTime() : null;
     }
 
-    // Check if a staff member with the same TeamID already exists
+
+    /**
+     * Adds a new staff member to the database.
+     *
+     * @param staff an instance of StaffMember containing staff details.
+     * @return true if the staff member is added successfully; false otherwise.
+     */
+    public boolean addStaff(StaffMember staff) {
+        String sql = "INSERT INTO Staff (name, teamID, startDate, phoneNumber, lastFlex, lastFloat) VALUES (?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement pstmt = dbConnection.getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, staff.getName());
+            pstmt.setString(2, staff.getTeamID());
+            pstmt.setDate(3, new java.sql.Date(staff.getStartDate().getTime()));
+            pstmt.setString(4, staff.getPhoneNumber());
+            pstmt.setTimestamp(5, staff.getLastFlex());
+            pstmt.setTimestamp(6, staff.getLastFloat());
+
+            pstmt.executeUpdate();
+            return true;
+        } catch (SQLException ex) {
+            System.err.println("Error adding staff: " + ex.getMessage());
+            return false;
+        }
+    }
+    /**
+     * Checks if a staff member with the specified TeamID already exists in the database.
+     *
+     * @param teamID the TeamID to check for duplicates.
+     * @return true if a duplicate exists; false otherwise.
+     */
     public boolean isDuplicate(String teamID) {
-        return staffList.stream().anyMatch(staff -> staff.getTeamID().equalsIgnoreCase(teamID.trim()));
+        String sql = "SELECT COUNT(*) FROM Staff WHERE teamID = ?";
+        try (PreparedStatement pstmt = dbConnection.getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, teamID);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next() && rs.getInt(1) > 0;
+        } catch (SQLException ex) {
+            System.err.println("Error checking duplicate TeamID: " + ex.getMessage());
+            return false;
+        }
     }
 
-    // Remove a staff member by name or TeamID
-    public void removeStaff(String identifier, Scanner scanner) {
-        List<StaffMember> matchingStaff = findStaffByNameOrTeamID(identifier);
+    /**
+     * Removes a staff member from the database by their TeamID.
+     *
+     * @param teamID the TeamID of the staff member to be removed.
+     * @return true if the staff member is removed successfully; false otherwise.
+     */
+    public boolean removeStaff(String teamID) {
+        String sql = "DELETE FROM Staff WHERE teamID = ?";
+        try (PreparedStatement pstmt = dbConnection.getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, teamID);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException ex) {
+            System.err.println("Error removing staff: " + ex.getMessage());
+            return false;
+        }
+    }
 
-        if (matchingStaff.isEmpty()) {
-            System.out.println("No staff member found.");
-        } else if (matchingStaff.size() == 1) {
-            staffList.remove(matchingStaff.get(0));
-            System.out.println("Staff member removed successfully.");
-        } else {
-            // Multiple matching staff members found, ask for clarification
-            String teamID = promptForTeamID(matchingStaff, scanner);
-            Optional<StaffMember> staffToRemove = staffList.stream()
-                    .filter(staff -> staff.getTeamID().equalsIgnoreCase(teamID.trim()))
-                    .findFirst();
+    /**
+     * Updates a staff member's details in the database.
+     *
+     * @param teamID the TeamID of the staff member to be updated.
+     * @param newPhoneNumber the updated phone number of the staff member.
+     * @param updatedLastFlex the updated lastFlex date as a LocalDateTime object (nullable).
+     * @param updatedLastFloat the updated lastFloat date as a LocalDateTime object (nullable).
+     * @return true if the update is successful; false otherwise.
+     */
+    public boolean updateStaff(String teamID, String newPhoneNumber, LocalDateTime updatedLastFlex, LocalDateTime updatedLastFloat) {
+        String fetchSql = "SELECT phoneNumber, lastFlex, lastFloat, lastFlexHistory, lastFloatHistory FROM Staff WHERE teamID = ?";
+        String updateSql = "UPDATE Staff SET phoneNumber = ?, lastFlex = ?, lastFloat = ?, lastFlexHistory = ?, lastFloatHistory = ? WHERE teamID = ?";
 
-            if (staffToRemove.isPresent()) {
-                staffList.remove(staffToRemove.get());
-                System.out.println("Staff member removed successfully.");
-            } else {
-                System.out.println("No staff member found with TeamID: " + teamID);
+        try (PreparedStatement fetchStmt = dbConnection.getConnection().prepareStatement(fetchSql)) {
+            fetchStmt.setString(1, teamID);
+            ResultSet rs = fetchStmt.executeQuery();
+
+            if (rs.next()) {
+                // Get the current values of lastFlex and lastFloat
+                Timestamp existingLastFlex = rs.getTimestamp("lastFlex");
+                Timestamp existingLastFloat = rs.getTimestamp("lastFloat");
+                String existingFlexHistory = rs.getString("lastFlexHistory");
+                String existingFloatHistory = rs.getString("lastFloatHistory");
+
+                // Convert the new dates to timestamps if they are provided
+                Long newFlexTimestamp = updatedLastFlex != null ? Timestamp.valueOf(updatedLastFlex).getTime() : null;
+                Long newFloatTimestamp = updatedLastFloat != null ? Timestamp.valueOf(updatedLastFloat).getTime() : null;
+
+                // Append the previous lastFlex to lastFlexHistory if it exists
+                String updatedFlexHistory = (existingLastFlex != null)
+                        ? (existingFlexHistory == null ? String.valueOf(existingLastFlex.getTime()) : existingFlexHistory + "," + existingLastFlex.getTime())
+                        : existingFlexHistory;
+
+                // Append the previous lastFloat to lastFloatHistory if it exists
+                String updatedFloatHistory = (existingLastFloat != null)
+                        ? (existingFloatHistory == null ? String.valueOf(existingLastFloat.getTime()) : existingFloatHistory + "," + existingLastFloat.getTime())
+                        : existingFloatHistory;
+
+                // Execute the update with new values
+                try (PreparedStatement updateStmt = dbConnection.getConnection().prepareStatement(updateSql)) {
+                    updateStmt.setString(1, newPhoneNumber);
+                    updateStmt.setTimestamp(2, newFlexTimestamp != null ? new Timestamp(newFlexTimestamp) : null);
+                    updateStmt.setTimestamp(3, newFloatTimestamp != null ? new Timestamp(newFloatTimestamp) : null);
+                    updateStmt.setString(4, updatedFlexHistory);
+                    updateStmt.setString(5, updatedFloatHistory);
+                    updateStmt.setString(6, teamID);
+
+                    return updateStmt.executeUpdate() > 0;
+                }
             }
+        } catch (SQLException ex) {
+            System.err.println("Error updating staff: " + ex.getMessage());
         }
+        return false;
     }
 
-    // Update staff member details by Name or TeamID
-    public void updateStaff(String identifier, String newPhoneNumber, LocalDateTime updatedLastFlex, LocalDateTime updatedLastFloat, Scanner scanner) {
-        List<StaffMember> matchingStaff = findStaffByNameOrTeamID(identifier);
-
-        if (matchingStaff.isEmpty()) {
-            System.out.println("No staff member found.");
-        } else if (matchingStaff.size() == 1) {
-            updateStaffDetails(matchingStaff.get(0), newPhoneNumber, updatedLastFlex, updatedLastFloat);
-        } else {
-            // Multiple matching staff members found, ask for clarification
-            String teamID = promptForTeamID(matchingStaff, scanner);
-            Optional<StaffMember> staffToUpdate = staffList.stream()
-                    .filter(staff -> staff.getTeamID().equalsIgnoreCase(teamID.trim()))
-                    .findFirst();
-
-            if (staffToUpdate.isPresent()) {
-                updateStaffDetails(staffToUpdate.get(), newPhoneNumber, updatedLastFlex, updatedLastFloat);
-            } else {
-                System.out.println("No staff member found with TeamID: " + teamID);
-            }
-        }
-    }
-
-    // Helper method to find staff by name or teamID
-    private List<StaffMember> findStaffByNameOrTeamID(String identifier) {
-        return staffList.stream()
-                .filter(staff -> staff.getName().equalsIgnoreCase(identifier.trim()) || staff.getTeamID().equalsIgnoreCase(identifier.trim()))
-                .toList();
-    }
-
-    // Helper method to prompt for teamID when there are multiple matching names
-    private String promptForTeamID(List<StaffMember> matchingStaff, Scanner scanner) {
-        System.out.println("Multiple staff members found with the same name:");
-        for (StaffMember staff : matchingStaff) {
-            System.out.println("Name: " + staff.getName() + " | TeamID: " + staff.getTeamID());
-        }
-        System.out.print("Enter the correct TeamID: ");
-        return scanner.nextLine().trim();
-    }
-
-    // Helper method to update staff details
-    private void updateStaffDetails(StaffMember staff, String newPhoneNumber, LocalDateTime updatedLastFlex, LocalDateTime updatedLastFloat) {
-        staff.setPhoneNumber(newPhoneNumber);
-        staff.addFlexDate(updatedLastFlex);
-        staff.addFloatDate(updatedLastFloat);
-        System.out.println("Staff member updated successfully.");
-    }
-
-    // Display all staff members
-    public void displayAllStaff() {
-        if (staffList.isEmpty()) {
-            System.out.println("No staff members found.");
-        } else {
-            System.out.println("List of Staff Members:");
-            for (StaffMember staff : staffList) {
-                System.out.println(staff);
-            }
-        }
-    }
-
-    // Search and display last flex/float by TeamID or Name
-    public void displayLastFlexFloat(String identifier, Scanner scanner) {
-        List<StaffMember> matchingStaff = findStaffByNameOrTeamID(identifier);
-
-        if (matchingStaff.isEmpty()) {
-            System.out.println("No staff member found.");
-        } else if (matchingStaff.size() == 1) {
-            displayFlexFloatDetails(matchingStaff.get(0));
-        } else {
-            // Multiple matching staff members found, ask for clarification
-            String teamID = promptForTeamID(matchingStaff, scanner);
-            Optional<StaffMember> staffToDisplay = staffList.stream()
-                    .filter(staff -> staff.getTeamID().equalsIgnoreCase(teamID.trim()))
-                    .findFirst();
-
-            if (staffToDisplay.isPresent()) {
-                displayFlexFloatDetails(staffToDisplay.get());
-            } else {
-                System.out.println("No staff member found with TeamID: " + teamID);
-            }
-        }
-    }
-
-    // Helper method to display flex/float details
-    private void displayFlexFloatDetails(StaffMember staff) {
-        System.out.println("Staff Member: " + staff.getName() + " | TeamID: " + staff.getTeamID());
-        System.out.println("Last Flex Date and Time: " + staff.getLastFlex());
-        System.out.println("Last Float Date and Time: " + staff.getLastFloat());
-    }
-
-    // Generate monthly float report
-    public void generateMonthlyFloatReport(int month, int year) {
-        List<StaffMember> floatedStaff = staffList.stream()
-                .filter(staff -> staff.getFloatDates().stream()
-                        .anyMatch(date -> date.getMonthValue() == month && date.getYear() == year))
-                .toList();
-
-        System.out.println("Number of staff who floated in " + month + "/" + year + ": " + floatedStaff.size());
-
-        if (!floatedStaff.isEmpty()) {
-            System.out.println("Staff members who floated:");
-            for (StaffMember staff : floatedStaff) {
-                System.out.println(" - " + staff.getName() + " (TeamID: " + staff.getTeamID() + ")");
-            }
-        }
-    }
-
-    // Generate yearly flex/float report
-    public void generateYearlyFlexFloatReport(int year) {
-        long flexCount = staffList.stream()
-                .flatMap(staff -> staff.getFlexDates().stream())
-                .filter(date -> date.getYear() == year)
-                .count();
-
-        long floatCount = staffList.stream()
-                .flatMap(staff -> staff.getFloatDates().stream())
-                .filter(date -> date.getYear() == year)
-                .count();
-
-        System.out.println("Number of staff who flexed in year " + year + ": " + flexCount);
-        System.out.println("Number of staff who floated in year " + year + ": " + floatCount);
-    }
-
-
-    // Check if a staff member exists by Name or TeamID
-    public boolean staffExists(String identifier) {
-        return !findStaffByNameOrTeamID(identifier).isEmpty();
-    }
-
-    // Return all staff members as a List for GUI table display
+    /**
+     * Retrieves all staff members from the database for display or processing.
+     *
+     * @return a list of StaffMember objects containing details of all staff members.
+     */
     public List<StaffMember> getAllStaffMembers() {
-        return new ArrayList<>(staffList);
+        List<StaffMember> staffList = new ArrayList<>();
+        String sql = "SELECT * FROM Staff";
+
+        try (Statement stmt = dbConnection.getConnection().createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                String name = rs.getString("name");
+                if (name == null || !name.contains(" ")) {
+                    System.err.println("Invalid name format: " + name);
+                    continue;
+                }
+
+                Date startDate = rs.getDate("startDate");
+                Timestamp lastFlexTimestamp = rs.getTimestamp("lastFlex");
+                Timestamp lastFloatTimestamp = rs.getTimestamp("lastFloat");
+
+                StaffMember staff = new StaffMember(
+                        name,
+                        rs.getString("teamID"),
+                        startDate,
+                        rs.getString("phoneNumber")
+                );
+
+                // Convert Timestamp to LocalDateTime if not null
+                if (lastFlexTimestamp != null) {
+                    staff.addFlexDate(convertToLocalDateTime(lastFlexTimestamp));
+                }
+
+                if (lastFloatTimestamp != null) {
+                    staff.addFloatDate(convertToLocalDateTime(lastFloatTimestamp));
+                }
+
+                staffList.add(staff);
+            }
+        } catch (SQLException ex) {
+            System.err.println("Error retrieving all staff members: " + ex.getMessage());
+        }
+        return staffList;
     }
 
-    // Find a staff member by identifier and return it for update/search display in GUI
-    public StaffMember getStaffByIdentifier(String identifier) {
-        return staffList.stream()
-                .filter(staff -> staff.getName().equalsIgnoreCase(identifier.trim()) || staff.getTeamID().equalsIgnoreCase(identifier.trim()))
-                .findFirst()
-                .orElse(null);
+    /**
+     * Retrieves a staff member by their unique TeamID.
+     *
+     * @param teamID the TeamID of the staff member to be retrieved.
+     * @return a StaffMember object containing the staff member's details, or null if not found.
+     */
+    public StaffMember getStaffByIdentifier(String teamID) {
+        String sql = "SELECT * FROM Staff WHERE teamID = ?";
+        try (PreparedStatement pstmt = dbConnection.getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, teamID);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                StaffMember staff = new StaffMember(
+                        rs.getString("name"),
+                        rs.getString("teamID"),
+                        rs.getDate("startDate"),
+                        rs.getString("phoneNumber")
+                );
+                if (rs.getTimestamp("lastFlex") != null) {
+                    staff.addFlexDate(convertToLocalDateTime(rs.getTimestamp("lastFlex")));
+                }
+                if (rs.getTimestamp("lastFloat") != null) {
+                    staff.addFloatDate(convertToLocalDateTime(rs.getTimestamp("lastFloat")));
+                }
+                return staff;
+            }
+        } catch (SQLException ex) {
+            System.err.println("Error retrieving staff by identifier: " + ex.getMessage());
+        }
+        return null;
     }
 
+    /**
+     * Generates a report of staff who floated in a specific month and year.
+     *
+     * @param month the month for the report (1-12).
+     * @param year the year for the report.
+     * @return a list of StaffMember objects who floated during the specified month.
+     */
+    public List<StaffMember> generateMonthlyFloatReport(int month, int year) {
+        List<StaffMember> floatedStaff = new ArrayList<>();
+        String sql = "SELECT * FROM Staff WHERE strftime('%m', datetime(lastFloat / 1000, 'unixepoch')) = ? AND strftime('%Y', datetime(lastFloat / 1000, 'unixepoch')) = ?";
 
+        try (PreparedStatement pstmt = dbConnection.getConnection().prepareStatement(sql)) {
+            // Format month and year as strings
+            pstmt.setString(1, String.format("%02d", month)); // e.g., "08" for August
+            pstmt.setString(2, String.valueOf(year));          // e.g., "2024"
+
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                StaffMember staff = new StaffMember(
+                        rs.getString("name"),
+                        rs.getString("teamID"),
+                        rs.getDate("startDate"),
+                        rs.getString("phoneNumber")
+                );
+                if (rs.getTimestamp("lastFloat") != null) {
+                    staff.addFloatDate(rs.getTimestamp("lastFloat").toLocalDateTime());
+                }
+                floatedStaff.add(staff);
+            }
+        } catch (SQLException ex) {
+            System.err.println("Error generating monthly float report: " + ex.getMessage());
+        }
+        return floatedStaff;
+    }
+
+    /**
+     * Generates a report of staff who flexed or floated during a specific year.
+     *
+     * @param year the year for the report.
+     * @return a list of StaffMember objects who flexed or floated during the specified year.
+     */
+    public List<StaffMember> generateYearlyFlexFloatReport(int year) {
+        List<StaffMember> yearlyStaff = new ArrayList<>();
+        String sql = "SELECT * FROM Staff WHERE strftime('%Y', datetime(lastFlex / 1000, 'unixepoch')) = ? OR strftime('%Y', datetime(lastFloat / 1000, 'unixepoch')) = ?";
+
+        try (PreparedStatement pstmt = dbConnection.getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, String.valueOf(year)); // e.g., "2024" for the year
+            pstmt.setString(2, String.valueOf(year)); // Match for both lastFlex and lastFloat
+
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                StaffMember staff = new StaffMember(
+                        rs.getString("name"),
+                        rs.getString("teamID"),
+                        rs.getDate("startDate"),
+                        rs.getString("phoneNumber")
+                );
+                if (rs.getTimestamp("lastFlex") != null) {
+                    staff.addFlexDate(rs.getTimestamp("lastFlex").toLocalDateTime());
+                }
+                if (rs.getTimestamp("lastFloat") != null) {
+                    staff.addFloatDate(rs.getTimestamp("lastFloat").toLocalDateTime());
+                }
+                yearlyStaff.add(staff);
+            }
+        } catch (SQLException ex) {
+            System.err.println("Error generating yearly flex/float report: " + ex.getMessage());
+        }
+        return yearlyStaff;
+    }
 }

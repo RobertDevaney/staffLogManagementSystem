@@ -1,3 +1,11 @@
+/**
+ * Robert Devaney
+ * CEN-3024C-15339
+ * October 20, 2024
+ * MainForm.java
+ * This class provides the GUI and main functionality for the Staff Log Management System.
+ * It connects the system to the database, enables CRUD operations, and generates reports.
+ */
 package com.devaneystafflog;
 
 import javax.swing.*;
@@ -8,8 +16,10 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.Month;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -17,9 +27,9 @@ import java.util.Scanner;
 
 public class MainForm {
 
-    private StaffLogManager manager;           // Added as an instance variable
-    private InputValidator validator;          // Added as an instance variable
-    private JTextArea txtOutput;               // Added as an instance variable for output messages
+    private StaffLogManager manager;
+    private InputValidator validator;
+    private JTextArea txtOutput;
     private JTabbedPane tabbedPaneMain;
     private JPanel panel1;
     private JPanel panelAddStaff;
@@ -71,144 +81,124 @@ public class MainForm {
     private JPanel panelYearlyReport;
     private JButton btnLoadFromFile;
     private JTextField txtFilePath;
+    private JTextField filePathTextField;
+    private JButton connectButton;
+    private DatabaseConnection dbConnection;
 
+    /**
+     * Constructor: MainForm
+     * Initializes the GUI components and sets up action listeners for various operations.
+     */
     public MainForm() {
-        // Instantiate manager and validator
-        manager = new StaffLogManager();         // Initialize the StaffLogManager instance
-        validator = new InputValidator(new Scanner(System.in));  // Initialize the InputValidator instance
-
-
-        // Initialize month and year combo boxes
+        validator = new InputValidator(new Scanner(System.in));
         initializeComboBoxes();
-        // Set up action listeners for GUI buttons
-        btnAddStaff.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                addStaff();
+
+        connectButton.addActionListener(e -> {
+            String dbPath = filePathTextField.getText();
+            dbConnection = new DatabaseConnection(dbPath);
+
+            if (dbConnection.getConnection() != null) {
+                manager = new StaffLogManager(dbConnection); // Initialize manager after connection
+                JOptionPane.showMessageDialog(panel1, "Database connected successfully!");
+                connectButton.setEnabled(false);
+
+                // Only display staff after manager and connection are initialized
+                displayAllStaff();
+            } else {
+                JOptionPane.showMessageDialog(panel1, "Failed to connect. Check the file path.");
             }
         });
 
-        btnRemoveStaff.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                removeStaff();
-            }
-        });
 
-        btnUpdateStaff.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                updateStaff();
-            }
-        });
+        btnAddStaff.addActionListener(e -> addStaff());
+        btnRemoveStaff.addActionListener(e -> removeStaff());
+        btnUpdateStaff.addActionListener(e -> updateStaff());
+        btnLoadFromFile.addActionListener(e -> loadFromFile());
+        btnSearchStaff.addActionListener(e -> searchStaff());
+        btnGenerateMonthlyReport.addActionListener(e -> generateMonthlyReport());
+        btnGenerateYearlyReport.addActionListener(e -> generateYearlyReport());
 
-        btnLoadFromFile.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                loadFromFile();
-            }
-        });
-
-        btnSearchStaff.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                searchStaff();
-            }
-        });
-        btnGenerateMonthlyReport.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                generateMonthlyReport();
-            }
-        });
-
-        btnGenerateYearlyReport.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                generateYearlyReport();
-            }
-        });
-        // Set up real-time validation for date input
         txtStartDate.getDocument().addDocumentListener(new DocumentListener() {
             @Override
-            public void insertUpdate(DocumentEvent e) {
-                validateDate(txtStartDate, "MM-dd-yyyy", btnAddStaff);
-            }
-
+            public void insertUpdate(DocumentEvent e) { validateDate(txtStartDate, "MM-dd-yyyy", btnAddStaff); }
             @Override
-            public void removeUpdate(DocumentEvent e) {
-                validateDate(txtStartDate, "MM-dd-yyyy", btnAddStaff);
-            }
-
+            public void removeUpdate(DocumentEvent e) { validateDate(txtStartDate, "MM-dd-yyyy", btnAddStaff); }
             @Override
-            public void changedUpdate(DocumentEvent e) {
-                validateDate(txtStartDate, "MM-dd-yyyy", btnAddStaff);
-            }
+            public void changedUpdate(DocumentEvent e) { validateDate(txtStartDate, "MM-dd-yyyy", btnAddStaff); }
         });
 
-        // Display all staff members in table on launch
-        displayAllStaff();
+        // displayAllStaff();
     }
+
+    /**
+     * Initializes combo boxes with appropriate values for months and years.
+     */
     private void initializeComboBoxes() {
-        // Populate months in comboMonth
         if (comboMonth != null) {
             String[] months = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
-            for (String month : months) {
-                comboMonth.addItem(month);
-            }
+            for (String month : months) comboMonth.addItem(month);
         }
-
-        // Populate years in comboYear and comboYearOnly
-        if (comboYear != null) {
-            for (int year = 2000; year <= 2030; year++) {
-                comboYear.addItem(String.valueOf(year));
-            }
-        }
-        if (comboYearOnly != null) {
-            for (int year = 2000; year <= 2030; year++) {
-                comboYearOnly.addItem(String.valueOf(year));
-            }
-        }
+        if (comboYear != null) for (int year = 2000; year <= 2030; year++) comboYear.addItem(String.valueOf(year));
+        if (comboYearOnly != null) for (int year = 2000; year <= 2030; year++) comboYearOnly.addItem(String.valueOf(year));
     }
+
+    /**
+     * Adds a new staff member to the database.
+     */
     private void addStaff() {
         try {
             String name = txtName.getText().trim();
             String teamID = txtTeamID.getText().trim();
             String startDateStr = txtStartDate.getText().trim();
-            String lastFlexStr = txtLastFlex.getText().trim();
-            String lastFloatStr = txtLastFloat.getText().trim();
             String phoneNumber = txtPhoneNumber.getText().trim();
 
-            // Validate the start date format before parsing it
-            if (!isDateValid(startDateStr)) {
-                txtOutput.setText("Error: Start Date must be in MM-dd-yyyy format.");
-                return;
+            // Parse and format the start date
+            SimpleDateFormat dateFormat = new SimpleDateFormat("MM-dd-yyyy");
+            java.util.Date parsedDate = dateFormat.parse(startDateStr);
+            java.sql.Date startDate = new java.sql.Date(parsedDate.getTime());
+
+            // Parse LocalDateTime fields for lastFlex and lastFloat
+            LocalDateTime lastFlex = null;
+            LocalDateTime lastFloat = null;
+
+            if (!txtLastFlex.getText().trim().isEmpty()) {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm");
+                lastFlex = LocalDateTime.parse(txtLastFlex.getText().trim(), formatter);
             }
 
-            Date startDate = validator.validateDate(startDateStr);
-            LocalDateTime lastFlex = validator.validateDateTime(lastFlexStr);
-            LocalDateTime lastFloat = validator.validateDateTime(lastFloatStr);
+            if (!txtLastFloat.getText().trim().isEmpty()) {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm");
+                lastFloat = LocalDateTime.parse(txtLastFloat.getText().trim(), formatter);
+            }
 
-            if (!manager.isDuplicate(teamID)) {
-                StaffMember staff = new StaffMember(name, teamID, startDate, phoneNumber);
+            // Create the StaffMember and add it
+            StaffMember staff = new StaffMember(name, teamID, startDate, phoneNumber);
+            if (lastFlex != null) {
                 staff.addFlexDate(lastFlex);
+            }
+            if (lastFloat != null) {
                 staff.addFloatDate(lastFloat);
-                manager.addStaff(staff);
+            }
+
+            if (manager.isDuplicate(teamID)) {
+                txtOutput.setText("Duplicate TeamID. This staff member already exists.");
+            } else if (manager.addStaff(staff)) {
                 txtOutput.setText("Staff member added successfully.");
                 displayAllStaff();
             } else {
-                txtOutput.setText("Duplicate TeamID. This staff member already exists.");
+                txtOutput.setText("Error adding staff.");
             }
         } catch (ParseException | IllegalArgumentException ex) {
-            txtOutput.setText("Error adding staff: " + ex.getMessage());
+            txtOutput.setText("Error: " + ex.getMessage());
         }
     }
 
+    /**
+     * Removes a staff member from the database by TeamID.
+     */
     private void removeStaff() {
-        String identifier = txtRemoveIdentifier.getText().trim();
-        StaffMember staffToRemove = manager.getStaffByIdentifier(identifier);
-        if (staffToRemove != null) {
-            manager.removeStaff(identifier, validator.getScanner());
+        String teamID = txtRemoveIdentifier.getText().trim();
+        if (manager.removeStaff(teamID)) {
             txtOutput.setText("Staff member removed successfully.");
         } else {
             txtOutput.setText("Staff member not found.");
@@ -216,43 +206,40 @@ public class MainForm {
         displayAllStaff();
     }
 
-
-
+    /**
+     * Updates a staff member's details in the database.
+     */
     private void updateStaff() {
+        String teamID = txtUpdateIdentifier.getText().trim();
+        String phoneNumber = txtUpdatePhoneNumber.getText().trim();
+
         try {
-            String identifier = txtUpdateIdentifier.getText().trim();
-            String phoneNumber = txtUpdatePhoneNumber.getText().trim();
-            String lastFlexStr = txtUpdateLastFlex.getText().trim();
-            String lastFloatStr = txtUpdateLastFloat.getText().trim();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm");
+            LocalDateTime lastFlex = null;
+            LocalDateTime lastFloat = null;
 
-            // Validate phone number format
-            if (!isPhoneNumberValid(phoneNumber)) {
-                txtOutput.setText("Error: Phone Number must be in XXX-XXX-XXXX format.");
-                return;
+            if (!txtUpdateLastFlex.getText().trim().isEmpty()) {
+                lastFlex = LocalDateTime.parse(txtUpdateLastFlex.getText().trim(), formatter);
             }
 
-            // Validate date and time formats for Last Flex and Last Float
-            if (!isDateTimeValid(lastFlexStr) || !isDateTimeValid(lastFloatStr)) {
-                txtOutput.setText("Error: Date and Time must be in MM-dd-yyyy HH format.");
-                return;
+            if (!txtUpdateLastFloat.getText().trim().isEmpty()) {
+                lastFloat = LocalDateTime.parse(txtUpdateLastFloat.getText().trim(), formatter);
             }
 
-            LocalDateTime lastFlex = validator.validateDateTime(lastFlexStr);
-            LocalDateTime lastFloat = validator.validateDateTime(lastFloatStr);
-
-            StaffMember staffToUpdate = manager.getStaffByIdentifier(identifier);
-            if (staffToUpdate != null) {
-                manager.updateStaff(identifier, phoneNumber, lastFlex, lastFloat, validator.getScanner());
+            if (manager.updateStaff(teamID, phoneNumber, lastFlex, lastFloat)) {
                 txtOutput.setText("Staff member updated successfully.");
                 displayAllStaff();
             } else {
                 txtOutput.setText("Staff member not found.");
             }
-        } catch (IllegalArgumentException ex) {
+        } catch (Exception ex) {
             txtOutput.setText("Error updating staff: " + ex.getMessage());
         }
     }
 
+    /**
+     * Loads staff data from a file and updates the database.
+     */
     private void loadFromFile() {
         String filePath = txtFilePath.getText().trim();
         FileIO fileIO = new FileIO();
@@ -261,87 +248,80 @@ public class MainForm {
         displayAllStaff();
     }
 
+    /**
+     * Searches for a staff member by their TeamID or identifier and displays the result.
+     */
     private void searchStaff() {
         String identifier = txtSearchIdentifier.getText().trim();
         StaffMember staff = manager.getStaffByIdentifier(identifier);
-        if (staff != null) {
-            txtSearchResult.setText(staff.toString());
-        } else {
-            txtSearchResult.setText("No staff member found with the identifier: " + identifier);
-        }
+        txtSearchResult.setText(staff != null ? staff.toString() : "No staff member found.");
     }
+
+    /**
+     * Generates a report of staff who floated during a specific month and year.
+     * Displays the result in the report result text area.
+     */
     private void generateMonthlyReport() {
         String month = (String) comboMonth.getSelectedItem();
         String year = (String) comboYear.getSelectedItem();
+
         if (month == null || year == null) {
-            txtReportResult.setText("Please select both a month and a year to generate the report.");
+            txtReportResult.setText("Please select both a month and a year.");
             return;
         }
 
-        // Parse the month into its numerical value
-        int monthValue = Month.valueOf(month.toUpperCase()).getValue();
-        int yearValue = Integer.parseInt(year);
+        int selectedMonth = Month.valueOf(month.toUpperCase()).getValue();
+        int selectedYear = Integer.parseInt(year);
 
-        List<StaffMember> floatedStaff = new ArrayList<>();
-        for (StaffMember staff : manager.getAllStaffMembers()) {
-            for (LocalDateTime floatDate : staff.getFloatDates()) {
-                if (floatDate.getMonthValue() == monthValue && floatDate.getYear() == yearValue) {
-                    floatedStaff.add(staff);
-                    break;
-                }
-            }
-        }
+        // Log selected values
+        System.out.println("Generating report for Month: " + selectedMonth + ", Year: " + selectedYear);
 
-        StringBuilder report = new StringBuilder();
-        report.append("Number of staff who floated in " + month + " " + year + ": " + floatedStaff.size() + "\n");
-        report.append("Staff members who floated:\n");
-        for (StaffMember staff : floatedStaff) {
-            report.append(" - " + staff.getName() + " (TeamID: " + staff.getTeamID() + ")\n");
+        List<StaffMember> floatedStaff = manager.generateMonthlyFloatReport(selectedMonth, selectedYear);
+
+        // Log if query execution happened and returned any data
+        if (floatedStaff.isEmpty()) {
+            System.out.println("No data found for the selected month and year.");
+            txtReportResult.setText("No staff members floated in the selected month and year.");
+        } else {
+            System.out.println("Data retrieved successfully for monthly report.");
+            StringBuilder report = new StringBuilder("Monthly Float Report:\n");
+            floatedStaff.forEach(staff -> report.append(staff.getName()).append(" (").append(staff.getTeamID()).append(")\n"));
+            txtReportResult.setText(report.toString());
         }
-        txtReportResult.setText(report.toString());
     }
 
-
+    /**
+     * Generates a report of staff who flexed or floated during a specific year.
+     * Displays the result in the report result text area.
+     */
     private void generateYearlyReport() {
         String year = (String) comboYearOnly.getSelectedItem();
         if (year == null) {
-            txtReportResult.setText("Please select a year to generate the report.");
+            txtReportResult.setText("Please select a year.");
             return;
         }
 
-        int yearValue = Integer.parseInt(year);
-        List<StaffMember> flexedStaff = new ArrayList<>();
-        List<StaffMember> floatedStaff = new ArrayList<>();
+        int selectedYear = Integer.parseInt(year);
+        System.out.println("Generating yearly report for year: " + selectedYear);
 
-        for (StaffMember staff : manager.getAllStaffMembers()) {
-            for (LocalDateTime flexDate : staff.getFlexDates()) {
-                if (flexDate.getYear() == yearValue) {
-                    flexedStaff.add(staff);
-                    break;
-                }
-            }
-            for (LocalDateTime floatDate : staff.getFloatDates()) {
-                if (floatDate.getYear() == yearValue) {
-                    floatedStaff.add(staff);
-                    break;
-                }
-            }
-        }
+        List<StaffMember> yearlyStaff = manager.generateYearlyFlexFloatReport(selectedYear);
 
-        StringBuilder report = new StringBuilder();
-        report.append("Number of staff who flexed in year " + year + ": " + flexedStaff.size() + "\n");
-        report.append("Staff members who flexed:\n");
-        for (StaffMember staff : flexedStaff) {
-            report.append(" - " + staff.getName() + " (TeamID: " + staff.getTeamID() + ")\n");
+        // Log if query execution happened and returned any data
+        if (yearlyStaff.isEmpty()) {
+            System.out.println("No data found for the selected year.");
+            txtReportResult.setText("No staff members had flexed or floated in the selected year.");
+        } else {
+            System.out.println("Data retrieved successfully for yearly report.");
+            StringBuilder report = new StringBuilder("Yearly Flex/Float Report:\n");
+            yearlyStaff.forEach(staff -> report.append(staff.getName()).append(" (").append(staff.getTeamID()).append(")\n"));
+            txtReportResult.setText(report.toString());
         }
-        report.append("\nNumber of staff who floated in year " + year + ": " + floatedStaff.size() + "\n");
-        report.append("Staff members who floated:\n");
-        for (StaffMember staff : floatedStaff) {
-            report.append(" - " + staff.getName() + " (TeamID: " + staff.getTeamID() + ")\n");
-        }
-        txtReportResult.setText(report.toString());
     }
 
+    /**
+     * Displays all staff members in the table view.
+     * Populates the table with staff details such as name, teamID, start date, and more.
+     */
     private void displayAllStaff() {
         List<StaffMember> staffList = manager.getAllStaffMembers();
         DefaultTableModel model = new DefaultTableModel();
@@ -352,47 +332,57 @@ public class MainForm {
         model.addColumn("Last Flex");
         model.addColumn("Last Float");
 
+        SimpleDateFormat dateFormat = new SimpleDateFormat("MM-dd-yyyy");
+        DateTimeFormatter timestampFormatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm");
+
         for (StaffMember staff : staffList) {
+            // Format Start Date
+            String startDateFormatted = staff.getStartDate() != null ? dateFormat.format(staff.getStartDate()) : "";
+
+            // Directly use Timestamp to format Last Flex and Last Float
+            String lastFlexFormatted = staff.getLastFlex() != null ? staff.getLastFlex().toLocalDateTime().format(timestampFormatter) : "";
+            String lastFloatFormatted = staff.getLastFloat() != null ? staff.getLastFloat().toLocalDateTime().format(timestampFormatter) : "";
+
             model.addRow(new Object[]{
                     staff.getName(),
                     staff.getTeamID(),
-                    staff.getStartDate(),
+                    startDateFormatted,
                     staff.getPhoneNumber(),
-                    staff.getLastFlex(),
-                    staff.getLastFloat()
+                    lastFlexFormatted,
+                    lastFloatFormatted
             });
         }
+
         tableViewAllStaff.setModel(model);
     }
 
-    private boolean isDateValid(String dateStr) {
-        return dateStr.matches("\\d{2}-\\d{2}-\\d{4}");
-    }
-
-    private boolean isPhoneNumberValid(String phoneNumber) {
-        return phoneNumber.matches("\\d{3}-\\d{3}-\\d{4}");
-    }
-
-    private boolean isDateTimeValid(String dateTimeStr) {
-        return dateTimeStr.matches("\\d{2}-\\d{2}-\\d{4} \\d{2}:\\d{2}");
-    }
-
-
-
+    /**
+     * Validates the date entered in a text field and enables or disables a button based on validity.
+     *
+     * @param textField    the JTextField containing the date input.
+     * @param format       the required date format as a string.
+     * @param actionButton the button to enable or disable based on validation.
+     */
     private void validateDate(JTextField textField, String format, JButton actionButton) {
-        if (!isDateValid(textField.getText().trim())) {
-            textField.setBorder(BorderFactory.createLineBorder(Color.RED));
-            actionButton.setEnabled(false);
-        } else {
-            textField.setBorder(BorderFactory.createLineBorder(Color.GRAY));
-            actionButton.setEnabled(true);
-        }
+        String dateStr = textField.getText().trim();
+        boolean isValid = dateStr.matches("\\d{2}-\\d{2}-\\d{4}"); // Ensures MM-dd-yyyy format
+        textField.setBorder(BorderFactory.createLineBorder(isValid ? Color.GRAY : Color.RED));
+        actionButton.setEnabled(isValid);
     }
 
-    public JPanel getMainPanel() {
-        return panel1; // Make sure panel1 is your main container
-    }
+    /**
+     * Gets the main panel for the application.
+     *
+     * @return the JPanel containing the main GUI.
+     */
+    public JPanel getMainPanel() { return panel1; }
 
+    /**
+     * The main entry point of the application.
+     * Sets up and displays the main GUI window.
+     *
+     * @param args command-line arguments (not used).
+     */
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             JFrame frame = new JFrame("Staff Log Management System");
@@ -400,9 +390,8 @@ public class MainForm {
             frame.setContentPane(mainForm.getMainPanel());
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.pack();
-            frame.setSize(800, 600); // Set preferred size
+            frame.setSize(800, 600);
             frame.setVisible(true);
         });
     }
-
 }
