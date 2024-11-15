@@ -1,7 +1,7 @@
 /**
  * Robert Devaney
  * CEN-3024C-15339
- * October 20, 2024
+ * November 15, 2024
  * MainForm.java
  * This class provides the GUI and main functionality for the Staff Log Management System.
  * It connects the system to the database, enables CRUD operations, and generates reports.

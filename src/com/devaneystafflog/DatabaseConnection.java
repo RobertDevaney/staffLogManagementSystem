@@ -1,7 +1,7 @@
 /**
  * Robert Devaney
  * CEN-3024C-15339
- * October 20, 2024
+ * November 15, 2024
  * DatabaseConnection.java
  * This class manages the connection to the SQLite database used in the
  * Database Management System (DMS) project. It handles the initialization,

@@ -1,7 +1,7 @@
 /**
  * Robert Devaney
  * CEN-3024C-15339
- * October 20, 2024
+ * November 15, 2024
  * StaffLogManager.java
  * This class manages the list of staff members, allowing additions, removals, updates,
  * and display of staff details. It includes features for reporting staff flex/float dates

@@ -6,7 +6,7 @@
  * This is the main class for the Staff Log Management System. It provides a menu-based interface for managing
  * staff members and loading data from a text file. The system allows users to add, remove, update staff members,
  * search for staff details, and generate reports based on flex and float data.
- */
+
 package com.devaneystafflog;
 
 import java.util.Scanner;
@@ -23,7 +23,7 @@ public class MainApp {
      * Arguments:
      *   - args: Command-line arguments (not used in this program).
      * Return: void
-     */
+
     public static void main(String[] args) {
         StaffLogManager manager = new StaffLogManager();
         Scanner scanner = new Scanner(System.in);
@@ -133,3 +133,4 @@ public class MainApp {
         scanner.close();
     }
 }
+*/
