@@ -237,6 +237,59 @@ public class StaffLogManager {
         }
         return null;
     }
+    public boolean updateStaffByName(String name, String newPhoneNumber, LocalDateTime updatedLastFlex, LocalDateTime updatedLastFloat) {
+        String sql = "UPDATE Staff SET phoneNumber = ?, lastFlex = ?, lastFloat = ? WHERE name = ?";
+        try (PreparedStatement pstmt = dbConnection.getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, newPhoneNumber);
+            pstmt.setTimestamp(2, updatedLastFlex != null ? Timestamp.valueOf(updatedLastFlex) : null);
+            pstmt.setTimestamp(3, updatedLastFloat != null ? Timestamp.valueOf(updatedLastFloat) : null);
+            pstmt.setString(4, name);
+
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException ex) {
+            System.err.println("Error updating staff by name: " + ex.getMessage());
+        }
+        return false;
+    }
+
+    public boolean removeStaffByName(String name) {
+        String sql = "DELETE FROM Staff WHERE name = ?";
+        try (PreparedStatement pstmt = dbConnection.getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, name);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException ex) {
+            System.err.println("Error removing staff by name: " + ex.getMessage());
+        }
+        return false;
+    }
+
+    public StaffMember getStaffByName(String name) {
+        String sql = "SELECT * FROM Staff WHERE name = ?";
+        try (PreparedStatement pstmt = dbConnection.getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, name);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                StaffMember staff = new StaffMember(
+                        rs.getString("name"),
+                        rs.getString("teamID"),
+                        rs.getDate("startDate"),
+                        rs.getString("phoneNumber")
+                );
+                if (rs.getTimestamp("lastFlex") != null) {
+                    staff.addFlexDate(convertToLocalDateTime(rs.getTimestamp("lastFlex")));
+                }
+                if (rs.getTimestamp("lastFloat") != null) {
+                    staff.addFloatDate(convertToLocalDateTime(rs.getTimestamp("lastFloat")));
+                }
+                return staff;
+            }
+        } catch (SQLException ex) {
+            System.err.println("Error retrieving staff by name: " + ex.getMessage());
+        }
+        return null;
+    }
+
 
     /**
      * Generates a report of staff who floated in a specific month and year.

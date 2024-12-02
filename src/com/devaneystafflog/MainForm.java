@@ -197,20 +197,26 @@ public class MainForm {
      * Removes a staff member from the database by TeamID.
      */
     private void removeStaff() {
-        String teamID = txtRemoveIdentifier.getText().trim();
-        if (manager.removeStaff(teamID)) {
-            txtOutput.setText("Staff member removed successfully.");
-        } else {
-            txtOutput.setText("Staff member not found.");
+        String identifier = txtRemoveIdentifier.getText().trim();
+
+        boolean isRemoved = false;
+
+        if (identifier.matches("^\\d{6}$")) { // If it's a TeamID
+            isRemoved = manager.removeStaff(identifier);
+        } else { // Assume it's a name
+            isRemoved = manager.removeStaffByName(identifier);
         }
+
+        txtOutput.setText(isRemoved ? "Staff member removed successfully." : "Staff member not found.");
         displayAllStaff();
     }
+
 
     /**
      * Updates a staff member's details in the database.
      */
     private void updateStaff() {
-        String teamID = txtUpdateIdentifier.getText().trim();
+        String identifier = txtUpdateIdentifier.getText().trim();
         String phoneNumber = txtUpdatePhoneNumber.getText().trim();
 
         try {
@@ -226,16 +232,21 @@ public class MainForm {
                 lastFloat = LocalDateTime.parse(txtUpdateLastFloat.getText().trim(), formatter);
             }
 
-            if (manager.updateStaff(teamID, phoneNumber, lastFlex, lastFloat)) {
-                txtOutput.setText("Staff member updated successfully.");
-                displayAllStaff();
-            } else {
-                txtOutput.setText("Staff member not found.");
+            boolean isUpdated = false;
+
+            if (identifier.matches("^\\d{6}$")) { // If it's a TeamID
+                isUpdated = manager.updateStaff(identifier, phoneNumber, lastFlex, lastFloat);
+            } else { // Assume it's a name
+                isUpdated = manager.updateStaffByName(identifier, phoneNumber, lastFlex, lastFloat);
             }
+
+            txtOutput.setText(isUpdated ? "Staff member updated successfully." : "Staff member not found.");
+            displayAllStaff();
         } catch (Exception ex) {
             txtOutput.setText("Error updating staff: " + ex.getMessage());
         }
     }
+
 
     /**
      * Loads staff data from a file and updates the database.
@@ -253,7 +264,14 @@ public class MainForm {
      */
     private void searchStaff() {
         String identifier = txtSearchIdentifier.getText().trim();
-        StaffMember staff = manager.getStaffByIdentifier(identifier);
+        StaffMember staff;
+
+        if (identifier.matches("^\\d{6}$")) { // Checks if identifier is a TeamID
+            staff = manager.getStaffByIdentifier(identifier);
+        } else {
+            staff = manager.getStaffByName(identifier);
+        }
+
         txtSearchResult.setText(staff != null ? staff.toString() : "No staff member found.");
     }
 
